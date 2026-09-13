@@ -352,7 +352,7 @@ export function AvailabilityMatrix({ sessionPartner, viewingPartnerId, onOpenLog
 
         {/* Schedule Grid Table */}
         <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-xs text-center border-collapse">
+          <table className="w-full text-xs text-center border-collapse min-w-[680px]">
             <thead>
               <tr className="bg-[#0F172A]/90 text-slate-300 border-b border-[#0077FF]/20">
                 <th className="p-3 text-left font-semibold sticky left-0 bg-[#0F172A] z-10">Franja Horaria</th>

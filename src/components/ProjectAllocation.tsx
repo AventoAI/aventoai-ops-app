@@ -42,6 +42,8 @@ export function ProjectAllocation({ sessionPartner }: ProjectAllocationProps) {
   const [allocNote, setAllocNote] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
+  const isCEO = sessionPartner?.id === 'guillermo'
+
   // Fetch real Projects, Allocations & Matrix Hours from Supabase DB on mount
   useEffect(() => {
     let isMounted = true
@@ -85,6 +87,11 @@ export function ProjectAllocation({ sessionPartner }: ProjectAllocationProps) {
   // Create a new project in Supabase DB
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isCEO) {
+      alert('🔒 Solo el CEO (Guillermo) puede crear nuevos proyectos en la agencia.')
+      return
+    }
+
     if (!newProjectName.trim()) {
       alert('Por favor ingresa el nombre del proyecto.')
       return
@@ -125,11 +132,13 @@ export function ProjectAllocation({ sessionPartner }: ProjectAllocationProps) {
       return
     }
 
-    const targetPartner = TEAM_PARTNERS.find(p => p.id === selectedPartnerId)
+    // Force non-CEO users to assign to themselves only
+    const targetPartnerId = isCEO ? selectedPartnerId : (sessionPartner?.id || selectedPartnerId)
+    const targetPartner = TEAM_PARTNERS.find(p => p.id === targetPartnerId)
     const projCategory = projects.find(p => p.name === selectedProjectName)?.category || 'internal'
 
     const newAllocData = {
-      partnerId: selectedPartnerId,
+      partnerId: targetPartnerId,
       projectName: selectedProjectName,
       category: projCategory,
       hours: Number(allocHours),
@@ -147,7 +156,7 @@ export function ProjectAllocation({ sessionPartner }: ProjectAllocationProps) {
 
     setAllocations(prev => {
       // Replace existing allocation for same partner and project, or add new
-      const filtered = prev.filter(a => !(a.partnerId === selectedPartnerId && a.projectName === selectedProjectName))
+      const filtered = prev.filter(a => !(a.partnerId === targetPartnerId && a.projectName === selectedProjectName))
       return [...filtered, savedItem]
     })
 
@@ -196,12 +205,14 @@ export function ProjectAllocation({ sessionPartner }: ProjectAllocationProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-          <button
-            onClick={() => setShowCreateProjectModal(true)}
-            className="flex-1 sm:flex-none px-3.5 py-2.5 bg-[#0F172A] hover:bg-[#0077FF]/20 border border-[#0077FF]/40 text-[#00F0FF] font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
-          >
-            <span>✨ + Crear Proyecto</span>
-          </button>
+          {isCEO && (
+            <button
+              onClick={() => setShowCreateProjectModal(true)}
+              className="flex-1 sm:flex-none px-3.5 py-2.5 bg-[#0F172A] hover:bg-[#0077FF]/20 border border-[#0077FF]/40 text-[#00F0FF] font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <span>✨ + Crear Proyecto</span>
+            </button>
+          )}
 
           <button
             onClick={() => {
@@ -211,7 +222,8 @@ export function ProjectAllocation({ sessionPartner }: ProjectAllocationProps) {
             }}
             className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-[#0077FF] to-[#00F0FF] text-slate-950 font-extrabold text-xs rounded-xl shadow-lg hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-1.5"
           >
-            <span>📌 Asignar Horas a Socio</span>
+            <span className="hidden sm:inline">📌 Asignar Horas</span>
+            <span className="inline sm:hidden">📌 Asignar Horas</span>
           </button>
         </div>
       </div>
@@ -476,16 +488,29 @@ export function ProjectAllocation({ sessionPartner }: ProjectAllocationProps) {
 
             <form onSubmit={handleAddAllocation} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Socio Asignado:</label>
+                <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                  <span>Socio Asignado:</span>
+                  {!isCEO && (
+                    <span className="text-[10px] text-[#00F0FF] font-mono font-normal">
+                      (Auto-asignación)
+                    </span>
+                  )}
+                </label>
                 <select
                   value={selectedPartnerId}
+                  disabled={!isCEO}
                   onChange={(e) => setSelectedPartnerId(e.target.value)}
-                  className="w-full bg-[#0F172A] border border-[#0077FF]/30 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none"
+                  className="w-full bg-[#0F172A] border border-[#0077FF]/30 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {TEAM_PARTNERS.map(p => (
                     <option key={p.id} value={p.id}>{p.name} ({p.role.split(' ')[0]})</option>
                   ))}
                 </select>
+                {!isCEO && (
+                  <p className="text-[10px] text-slate-400 mt-1 italic leading-tight">
+                    💡 Como socio, asignas horas a tu propio perfil. Las asignaciones de horas a otros miembros las gestiona el CEO.
+                  </p>
+                )}
               </div>
 
               <div>

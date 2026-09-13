@@ -116,8 +116,8 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       <main className="max-w-5xl w-full mx-auto my-auto relative z-10 py-6">
         <div className="bg-[#080E1E]/90 backdrop-blur-2xl border border-[#0077FF]/30 rounded-3xl sm:rounded-[2.5rem] shadow-[0_0_50px_rgba(0,119,255,0.15)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 feather-glow-border">
 
-          {/* LEFT COLUMN: Hero Graphic & Branding Banner */}
-          <div className="lg:col-span-5 bg-gradient-to-b from-[#0B152C] via-[#080E1E] to-[#040914] p-6 sm:p-8 md:p-10 flex flex-col justify-between relative border-b lg:border-b-0 lg:border-r border-[#0077FF]/20 min-h-[380px] lg:min-h-[580px]">
+          {/* LEFT COLUMN: Hero Graphic & Branding Banner (Visible on Desktop) */}
+          <div className="hidden lg:flex lg:col-span-5 bg-gradient-to-b from-[#0B152C] via-[#080E1E] to-[#040914] p-6 sm:p-8 md:p-10 flex-col justify-between relative border-b lg:border-b-0 lg:border-r border-[#0077FF]/20 min-h-[580px]">
             {/* Dots Pattern Overlay */}
             <div className="absolute top-6 right-6 grid grid-cols-5 gap-1.5 opacity-30 pointer-events-none">
               {Array.from({ length: 25 }).map((_, i) => (
@@ -163,7 +163,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
           </div>
 
           {/* RIGHT COLUMN: Interactive Login Form */}
-          <div className="lg:col-span-7 p-6 sm:p-8 md:p-10 flex flex-col justify-between space-y-6">
+          <div className="col-span-1 lg:col-span-7 p-6 sm:p-8 md:p-10 flex flex-col justify-between space-y-6">
 
             {/* Form Top Header */}
             <div className="space-y-4">
@@ -228,7 +228,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                       setPin(e.target.value)
                       setError(null)
                     }}
-                    placeholder="•••••••• (PIN por defecto: 1234)"
+                    placeholder="•••• (PIN de 4 dígitos)"
                     className="w-full bg-[#0F172A]/90 border border-[#0077FF]/30 rounded-xl px-4 py-3 text-xs font-semibold text-white placeholder:text-slate-600 focus:outline-none focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF] transition-all"
                   />
                   <button

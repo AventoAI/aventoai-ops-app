@@ -236,12 +236,18 @@ export function MakeupsTracker({ sessionPartner }: MakeupsTrackerProps) {
                   )}
                 </div>
                 {m.status === 'pending' ? (
-                  <button
-                    onClick={() => markCompleted(m.id)}
-                    className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/40 text-xs font-bold rounded-lg transition-all cursor-pointer"
-                  >
-                    Marcar Cumplido
-                  </button>
+                  (sessionPartner && (sessionPartner.id === m.partnerId || sessionPartner.id === 'guillermo')) ? (
+                    <button
+                      onClick={() => markCompleted(m.id)}
+                      className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/40 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                    >
+                      Marcar Cumplido
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-amber-400/80 italic font-mono">
+                      ⏳ Pendiente por {m.partnerName.split(' ')[0]}
+                    </span>
+                  )
                 ) : (
                   <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">✓ Verificado</span>
                 )}
