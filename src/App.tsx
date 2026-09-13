@@ -1,14 +1,31 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { FallingFeathers } from './components/FallingFeathers'
 import { Navbar } from './components/Navbar'
 import { AvailabilityMatrix } from './components/AvailabilityMatrix'
 import { ProjectAllocation } from './components/ProjectAllocation'
 import { MakeupsTracker } from './components/MakeupsTracker'
 import { BottlenecksList } from './components/BottlenecksList'
+import { LoginPage } from './pages/LoginPage'
+import { TEAM_PARTNERS, Partner } from './lib/supabase'
 
-export function App() {
-  const [currentPartner, setCurrentPartner] = useState('guillermo')
+function DashboardPage({
+  sessionPartner,
+  onLogout
+}: {
+  sessionPartner: Partner
+  onLogout: () => void
+}) {
+  const navigate = useNavigate()
+  
+  // Default viewing partner to the currently logged in partner's ID
+  const [viewingPartnerId, setViewingPartnerId] = useState<string>(sessionPartner.id)
   const [activeTab, setActiveTab] = useState<'availability' | 'projects' | 'makeups' | 'bottlenecks'>('availability')
+
+  // Keep viewingPartnerId aligned if session changes
+  useEffect(() => {
+    setViewingPartnerId(sessionPartner.id)
+  }, [sessionPartner.id])
 
   return (
     <div className="bg-[#020817] text-slate-100 min-h-screen antialiased p-3 sm:p-5 md:p-6 relative overflow-x-hidden">
@@ -25,7 +42,16 @@ export function App() {
 
       {/* Main Container */}
       <div className="max-w-7xl mx-auto space-y-5 sm:space-y-6 relative z-10">
-        <Navbar currentPartner={currentPartner} onPartnerChange={setCurrentPartner} />
+        <Navbar
+          sessionPartner={sessionPartner}
+          viewingPartnerId={viewingPartnerId}
+          onViewingPartnerChange={setViewingPartnerId}
+          onOpenLogin={() => navigate('/login')}
+          onLogout={() => {
+            onLogout()
+            navigate('/login')
+          }}
+        />
 
         {/* Navigation Tabs */}
         <div className="flex gap-2 overflow-x-auto border-b border-[#0077FF]/20 pb-2 custom-scrollbar">
@@ -87,7 +113,13 @@ export function App() {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'availability' && <AvailabilityMatrix />}
+        {activeTab === 'availability' && (
+          <AvailabilityMatrix
+            sessionPartner={sessionPartner}
+            viewingPartnerId={viewingPartnerId}
+            onOpenLogin={() => navigate('/login')}
+          />
+        )}
         {activeTab === 'projects' && <ProjectAllocation />}
         {activeTab === 'makeups' && <MakeupsTracker />}
         {activeTab === 'bottlenecks' && <BottlenecksList />}
@@ -95,4 +127,46 @@ export function App() {
     </div>
   )
 }
+
+export function App() {
+  const [sessionPartner, setSessionPartner] = useState<Partner | null>(() => {
+    const savedId = localStorage.getItem('avento_session_partner_id')
+    return TEAM_PARTNERS.find(p => p.id === savedId) || null
+  })
+
+  const handleLoginSuccess = (partner: Partner) => {
+    setSessionPartner(partner)
+  }
+
+  const handleLogout = () => {
+    setSessionPartner(null)
+    localStorage.removeItem('avento_session_partner_id')
+  }
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/login"
+          element={<LoginPage onLoginSuccess={handleLoginSuccess} />}
+        />
+        <Route
+          path="/"
+          element={
+            sessionPartner ? (
+              <DashboardPage
+                sessionPartner={sessionPartner}
+                onLogout={handleLogout}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
 export default App

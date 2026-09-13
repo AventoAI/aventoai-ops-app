@@ -1,27 +1,53 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { TEAM_PARTNERS, Partner } from '../lib/supabase'
 
-export function AvailabilityMatrix() {
+interface AvailabilityMatrixProps {
+  sessionPartner: Partner | null
+  viewingPartnerId: string
+  onOpenLogin?: () => void
+}
+
+export function AvailabilityMatrix({ sessionPartner, viewingPartnerId, onOpenLogin }: AvailabilityMatrixProps) {
   const slots = ["08:00 - 10:00", "10:00 - 12:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 20:00", "20:00 - 22:00"]
   const days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
   const [selectedMobileDay, setSelectedMobileDay] = useState<number | 'all'>('all')
 
-  const [gridState, setGridState] = useState<Record<string, 'off' | 'dev' | 'meet' | 'makeup'>>(() => {
+  const viewingPartner = TEAM_PARTNERS.find(p => p.id === viewingPartnerId) || TEAM_PARTNERS[0]
+  const isEditable = sessionPartner !== null && sessionPartner.id === viewingPartnerId
+
+  // Mock initial grids per partner to simulate different member schedules
+  const [gridState, setGridState] = useState<Record<string, 'off' | 'dev' | 'meet' | 'makeup'>>({})
+
+  useEffect(() => {
+    // Generate deterministic mock schedule based on partner ID
+    const partnerHash = viewingPartnerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
     const initial: Record<string, 'off' | 'dev' | 'meet' | 'makeup'> = {}
+    
     slots.forEach((_, sIdx) => {
       days.forEach((_, dIdx) => {
         const key = `${sIdx}-${dIdx}`
-        if (sIdx === 4 && dIdx === 1) initial[key] = 'meet'
-        else if (sIdx === 5 && dIdx === 3) initial[key] = 'meet'
-        else if (sIdx < 4 && dIdx < 5 && (sIdx + dIdx) % 2 === 0) initial[key] = 'dev'
-        else if (dIdx >= 5 && sIdx === 1) initial[key] = 'makeup'
+        const seed = (sIdx + 1) * (dIdx + 1) + partnerHash
+        if (seed % 11 === 0) initial[key] = 'meet'
+        else if (seed % 3 === 0 && dIdx < 5) initial[key] = 'dev'
+        else if (dIdx >= 5 && seed % 4 === 0) initial[key] = 'makeup'
         else initial[key] = 'off'
       })
     })
-    return initial
-  })
+    setGridState(initial)
+  }, [viewingPartnerId])
 
   const toggleSlot = (sIdx: number, dIdx: number) => {
+    if (!isEditable) {
+      if (!sessionPartner) {
+        alert("🔒 Debes iniciar sesión para editar tu horario.")
+        if (onOpenLogin) onOpenLogin()
+      } else {
+        alert(`🔒 Solo puedes modificar tu propio horario. Estás viendo el horario de ${viewingPartner.name} en modo Solo Lectura.`)
+      }
+      return
+    }
+
     const key = `${sIdx}-${dIdx}`
     const states: Array<'off' | 'dev' | 'meet' | 'makeup'> = ['off', 'dev', 'meet', 'makeup']
     const current = gridState[key] || 'off'
@@ -53,6 +79,38 @@ export function AvailabilityMatrix() {
 
   return (
     <div className="space-y-6">
+      {/* Read Only or Editable Alert Banner */}
+      <div className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xl backdrop-blur-md ${
+        isEditable
+          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+          : 'bg-[#0077FF]/10 border-[#0077FF]/30 text-slate-300'
+      }`}>
+        <div className="flex items-center gap-2.5">
+          <span className="text-lg">{isEditable ? '✏️' : '👁️'}</span>
+          <div>
+            <p className="font-bold">
+              {isEditable
+                ? `Estás en tu horario (${sessionPartner.name})`
+                : `Viendo horario de ${viewingPartner.name} (${viewingPartner.role})`}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {isEditable
+                ? 'Tienes permisos para editar y guardar cambios en tus franjas semanales.'
+                : 'Modo Solo Lectura. Únicamente el propietario de este perfil puede modificar sus bloques.'}
+            </p>
+          </div>
+        </div>
+
+        {!isEditable && !sessionPartner && (
+          <button
+            onClick={onOpenLogin}
+            className="px-3 py-1.5 bg-[#0077FF] hover:bg-[#0077FF]/80 text-white font-bold text-xs rounded-xl transition-all shadow-md shrink-0 cursor-pointer"
+          >
+            🔐 Iniciar Sesión para Editar
+          </button>
+        )}
+      </div>
+
       {/* Top Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div className="bg-[#080E1E]/80 backdrop-blur-xl border border-[#0077FF]/25 rounded-2xl p-4 flex items-center justify-between shadow-xl">
@@ -98,13 +156,29 @@ export function AvailabilityMatrix() {
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
               <span className="text-[#00F0FF]">📅</span> Franjas de Disponibilidad Semanal
             </h2>
-            <p className="text-xs text-slate-400">Haz clic en los bloques para definir tus horas de desarrollo y franjas para reuniones.</p>
+            <p className="text-xs text-slate-400">
+              {isEditable
+                ? "Haz clic en los bloques para definir tus horas de desarrollo y franjas para reuniones."
+                : `Consultando los bloques asignados de ${viewingPartner.name}.`}
+            </p>
           </div>
+
           <button
-            onClick={() => alert("¡Horario de disponibilidad guardado en Supabase!")}
-            className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-[#0077FF] to-[#00F0FF] hover:opacity-90 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-[#0077FF]/30 cursor-pointer"
+            onClick={() => {
+              if (isEditable) {
+                alert(`¡Horario de ${viewingPartner.name} guardado exitosamente en Supabase!`)
+              } else {
+                alert(`🔒 Estás viendo el horario de ${viewingPartner.name} en modo Solo Lectura. No puedes sobrescribir sus datos.`)
+              }
+            }}
+            disabled={!isEditable}
+            className={`w-full sm:w-auto px-4 py-2.5 font-bold text-xs rounded-xl transition-all shadow-lg ${
+              isEditable
+                ? 'bg-gradient-to-r from-[#0077FF] to-[#00F0FF] hover:opacity-90 text-slate-950 shadow-[#0077FF]/30 cursor-pointer'
+                : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+            }`}
           >
-            Guardar Mi Horario
+            {isEditable ? 'Guardar Mi Horario' : '🔒 Solo Lectura'}
           </button>
         </div>
 
@@ -161,7 +235,10 @@ export function AvailabilityMatrix() {
                       <td key={dIdx} className="p-1.5 sm:p-2 min-w-[100px]">
                         <button
                           onClick={() => toggleSlot(sIdx, dIdx)}
-                          className={`w-full py-2.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all shadow-sm ${getSlotClass(state)}`}
+                          className={`w-full py-2.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all shadow-sm ${getSlotClass(state)} ${
+                            !isEditable ? 'cursor-not-allowed opacity-90' : 'cursor-pointer hover:scale-[1.02]'
+                          }`}
+                          title={!isEditable ? `Horario de ${viewingPartner.name} (Solo Lectura)` : 'Clic para cambiar tipo'}
                         >
                           {getSlotLabel(state)}
                         </button>
