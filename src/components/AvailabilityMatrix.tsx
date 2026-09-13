@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { TEAM_PARTNERS, Partner } from '../lib/supabase'
+import { TEAM_PARTNERS, Partner, fetchScheduleForPartnerDB, saveScheduleForPartnerDB, fetchAllSchedulesFromDB } from '../lib/supabase'
 
 interface AvailabilityMatrixProps {
   sessionPartner: Partner | null
@@ -12,30 +12,121 @@ export function AvailabilityMatrix({ sessionPartner, viewingPartnerId, onOpenLog
   const days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
   const [selectedMobileDay, setSelectedMobileDay] = useState<number | 'all'>('all')
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [isSaving, setIsSaving] = useState<boolean>(false)
 
   const viewingPartner = TEAM_PARTNERS.find(p => p.id === viewingPartnerId) || TEAM_PARTNERS[0]
   const isEditable = sessionPartner !== null && sessionPartner.id === viewingPartnerId
 
-  // Mock initial grids per partner to simulate different member schedules
   const [gridState, setGridState] = useState<Record<string, 'off' | 'dev' | 'meet' | 'makeup'>>({})
 
+  const [teamStats, setTeamStats] = useState<{
+    bestSlot: { day: string; slot: string; quorum: number; pct: number }
+    secondSlot: { day: string; slot: string; quorum: number; pct: number }
+    totalHours: number
+    avgHours: number
+    activePartnersCount: number
+  }>({
+    bestSlot: { day: 'Martes', slot: '18:00 - 20:00', quorum: 6, pct: 85 },
+    secondSlot: { day: 'Jueves', slot: '18:00 - 20:00', quorum: 7, pct: 100 },
+    totalHours: 115,
+    avgHours: 16.4,
+    activePartnersCount: 7
+  })
+
+  // Fetch real schedule from Supabase on viewing partner change
   useEffect(() => {
-    // Generate deterministic mock schedule based on partner ID
-    const partnerHash = viewingPartnerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-    const initial: Record<string, 'off' | 'dev' | 'meet' | 'makeup'> = {}
-    
-    slots.forEach((_, sIdx) => {
-      days.forEach((_, dIdx) => {
-        const key = `${sIdx}-${dIdx}`
-        const seed = (sIdx + 1) * (dIdx + 1) + partnerHash
-        if (seed % 11 === 0) initial[key] = 'meet'
-        else if (seed % 3 === 0 && dIdx < 5) initial[key] = 'dev'
-        else if (dIdx >= 5 && seed % 4 === 0) initial[key] = 'makeup'
-        else initial[key] = 'off'
+    let isMounted = true
+
+    async function loadScheduleFromSupabase() {
+      setIsLoading(true)
+      const dbSlots = await fetchScheduleForPartnerDB(viewingPartnerId)
+
+      if (!isMounted) return
+
+      const initial: Record<string, 'off' | 'dev' | 'meet' | 'makeup'> = {}
+
+      slots.forEach((slotStr, sIdx) => {
+        days.forEach((dayStr, dIdx) => {
+          const key = `${sIdx}-${dIdx}`
+          const dbKey = `${slotStr}_${dayStr}`
+
+          if (dbSlots && dbSlots[dbKey]) {
+            initial[key] = dbSlots[dbKey]
+          } else {
+            // Default to 'off' (No disponible) if partner has not saved a schedule yet
+            initial[key] = 'off'
+          }
+        })
       })
-    })
-    setGridState(initial)
+
+      setGridState(initial)
+      setIsLoading(false)
+    }
+
+    loadScheduleFromSupabase()
+    return () => {
+      isMounted = false
+    }
   }, [viewingPartnerId])
+
+  // Compute real dynamic statistics from Supabase across all partners
+  useEffect(() => {
+    let isMounted = true
+
+    async function computeStats() {
+      const allSlots = await fetchAllSchedulesFromDB()
+      if (!isMounted) return
+
+      if (!allSlots || allSlots.length === 0) return
+
+      const slotCounts: Record<string, Set<string>> = {}
+      const totalSlotsByPartner = new Set<string>()
+      let totalCommittedBlocks = 0
+
+      allSlots.forEach(s => {
+        if (s.type !== 'off') {
+          totalCommittedBlocks++
+          totalSlotsByPartner.add(s.partnerId)
+        }
+        if (s.type === 'meet' || s.type === 'dev') {
+          const key = `${s.day} • ${s.timeSlot}`
+          if (!slotCounts[key]) slotCounts[key] = new Set()
+          slotCounts[key].add(s.partnerId)
+        }
+      })
+
+      const totalPartnersCount = TEAM_PARTNERS.length || 7
+      const sortedSlots = Object.entries(slotCounts)
+        .map(([key, partnerSet]) => {
+          const parts = key.split(' • ')
+          const quorum = partnerSet.size
+          const pct = Math.round((quorum / totalPartnersCount) * 100)
+          return { day: parts[0], slot: parts[1], quorum, pct }
+        })
+        .sort((a, b) => b.quorum - a.quorum)
+
+      const best = sortedSlots[0] || { day: 'Martes', slot: '18:00 - 20:00', quorum: 6, pct: 85 }
+      const second = sortedSlots[1] || { day: 'Jueves', slot: '18:00 - 20:00', quorum: 5, pct: 71 }
+
+      const totalHours = totalCommittedBlocks * 2
+      const activePartnersCount = totalSlotsByPartner.size || totalPartnersCount
+      const avgHours = parseFloat((totalHours / totalPartnersCount).toFixed(1))
+
+      setTeamStats({
+        bestSlot: best,
+        secondSlot: second,
+        totalHours,
+        avgHours,
+        activePartnersCount
+      })
+    }
+
+    computeStats()
+    return () => {
+      isMounted = false
+    }
+  }, [gridState])
 
   const toggleSlot = (sIdx: number, dIdx: number) => {
     if (!isEditable) {
@@ -53,6 +144,38 @@ export function AvailabilityMatrix({ sessionPartner, viewingPartnerId, onOpenLog
     const current = gridState[key] || 'off'
     const nextState = states[(states.indexOf(current) + 1) % states.length]
     setGridState((prev) => ({ ...prev, [key]: nextState }))
+  }
+
+  const handleSaveToSupabase = async () => {
+    if (!isEditable) {
+      alert(`🔒 Estás viendo el horario de ${viewingPartner.name} en modo Solo Lectura. No puedes sobrescribir sus datos.`)
+      return
+    }
+
+    setIsSaving(true)
+    const slotsToSave: { day: string; timeSlot: string; type: 'off' | 'dev' | 'meet' | 'makeup' }[] = []
+
+    slots.forEach((slotStr, sIdx) => {
+      days.forEach((dayStr, dIdx) => {
+        const key = `${sIdx}-${dIdx}`
+        slotsToSave.push({
+          day: dayStr,
+          timeSlot: slotStr,
+          type: gridState[key] || 'off'
+        })
+      })
+    })
+
+    const result = await saveScheduleForPartnerDB(viewingPartnerId, slotsToSave)
+    setIsSaving(false)
+
+    if (result.success) {
+      alert(`✅ ¡El horario de ${viewingPartner.name} ha sido guardado exitosamente en tu base de datos de Supabase!`)
+      // Trigger gridState update to re-compute stats
+      setGridState(prev => ({ ...prev }))
+    } else {
+      alert(`⚠️ No se pudo guardar en Supabase: ${result.message || 'Verifica que ejecutaste la consulta SQL'}`)
+    }
   }
 
   const getSlotClass = (state: string) => {
@@ -79,7 +202,7 @@ export function AvailabilityMatrix({ sessionPartner, viewingPartnerId, onOpenLog
 
   return (
     <div className="space-y-6">
-      {/* Read Only or Editable Alert Banner */}
+      {/* Clean & Professional Read Only or Editable Banner */}
       <div className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xl backdrop-blur-md ${
         isEditable
           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
@@ -88,10 +211,15 @@ export function AvailabilityMatrix({ sessionPartner, viewingPartnerId, onOpenLog
         <div className="flex items-center gap-2.5">
           <span className="text-lg">{isEditable ? '✏️' : '👁️'}</span>
           <div>
-            <p className="font-bold">
+            <p className="font-bold flex items-center gap-2">
               {isEditable
                 ? `Estás en tu horario (${sessionPartner.name})`
                 : `Viendo horario de ${viewingPartner.name} (${viewingPartner.role})`}
+              {isLoading && (
+                <span className="text-[10px] text-[#00F0FF] animate-pulse flex items-center gap-1 font-mono">
+                  ⚡ Leyendo...
+                </span>
+              )}
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">
               {isEditable
@@ -111,40 +239,50 @@ export function AvailabilityMatrix({ sessionPartner, viewingPartnerId, onOpenLog
         )}
       </div>
 
-      {/* Top Stats Grid */}
+      {/* Top Dynamic Stats Grid (Real-time Supabase Computed) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div className="bg-[#080E1E]/80 backdrop-blur-xl border border-[#0077FF]/25 rounded-2xl p-4 flex items-center justify-between shadow-xl">
           <div>
             <p className="text-[11px] sm:text-xs font-medium text-slate-400">Mejor Franja para Reuniones</p>
             <p className="text-base sm:text-lg font-bold text-[#00F0FF] mt-1 drop-shadow-[0_0_8px_rgba(0,240,255,0.4)]">
-              Martes • 6:00 PM - 8:00 PM
+              {teamStats.bestSlot.day} • {teamStats.bestSlot.slot}
             </p>
-            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">Quórum: 6 de 7 socios libres</p>
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+              Quórum: {teamStats.bestSlot.quorum} de {TEAM_PARTNERS.length} socios libres
+            </p>
           </div>
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] flex items-center justify-center font-bold text-xs sm:text-sm shadow-[0_0_15px_rgba(0,240,255,0.2)]">
-            85%
+            {teamStats.bestSlot.pct}%
           </div>
         </div>
 
         <div className="bg-[#080E1E]/80 backdrop-blur-xl border border-[#0077FF]/25 rounded-2xl p-4 flex items-center justify-between shadow-xl">
           <div>
             <p className="text-[11px] sm:text-xs font-medium text-slate-400">Segunda Opción de Reunión</p>
-            <p className="text-base sm:text-lg font-bold text-emerald-400 mt-1">Jueves • 7:00 PM - 9:00 PM</p>
-            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">Quórum: 7 de 7 socios libres</p>
+            <p className="text-base sm:text-lg font-bold text-emerald-400 mt-1">
+              {teamStats.secondSlot.day} • {teamStats.secondSlot.slot}
+            </p>
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+              Quórum: {teamStats.secondSlot.quorum} de {TEAM_PARTNERS.length} socios libres
+            </p>
           </div>
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs sm:text-sm shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-            100%
+            {teamStats.secondSlot.pct}%
           </div>
         </div>
 
         <div className="bg-[#080E1E]/80 backdrop-blur-xl border border-[#0077FF]/25 rounded-2xl p-4 flex items-center justify-between shadow-xl sm:col-span-2 md:col-span-1">
           <div>
             <p className="text-[11px] sm:text-xs font-medium text-slate-400">Horas Totales Comprometidas</p>
-            <p className="text-base sm:text-lg font-bold text-slate-100 mt-1">115 Horas / Semana</p>
-            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">Promedio: 16.4 hrs / socio</p>
+            <p className="text-base sm:text-lg font-bold text-slate-100 mt-1">
+              {teamStats.totalHours} Horas / Semana
+            </p>
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+              Promedio: {teamStats.avgHours} hrs / socio
+            </p>
           </div>
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#0077FF]/15 border border-[#0077FF]/30 text-[#0077FF] flex items-center justify-center font-bold text-xs sm:text-sm">
-            7/7
+            {teamStats.activePartnersCount}/{TEAM_PARTNERS.length}
           </div>
         </div>
       </div>
@@ -164,21 +302,24 @@ export function AvailabilityMatrix({ sessionPartner, viewingPartnerId, onOpenLog
           </div>
 
           <button
-            onClick={() => {
-              if (isEditable) {
-                alert(`¡Horario de ${viewingPartner.name} guardado exitosamente en Supabase!`)
-              } else {
-                alert(`🔒 Estás viendo el horario de ${viewingPartner.name} en modo Solo Lectura. No puedes sobrescribir sus datos.`)
-              }
-            }}
-            disabled={!isEditable}
-            className={`w-full sm:w-auto px-4 py-2.5 font-bold text-xs rounded-xl transition-all shadow-lg ${
+            onClick={handleSaveToSupabase}
+            disabled={!isEditable || isSaving}
+            className={`w-full sm:w-auto px-4 py-2.5 font-bold text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 ${
               isEditable
                 ? 'bg-gradient-to-r from-[#0077FF] to-[#00F0FF] hover:opacity-90 text-slate-950 shadow-[#0077FF]/30 cursor-pointer'
                 : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
             }`}
           >
-            {isEditable ? 'Guardar Mi Horario' : '🔒 Solo Lectura'}
+            {isSaving ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                <span>Guardando en Supabase...</span>
+              </>
+            ) : isEditable ? (
+              'Guardar Mi Horario'
+            ) : (
+              '🔒 Solo Lectura'
+            )}
           </button>
         </div>
 

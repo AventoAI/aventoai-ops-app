@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TEAM_PARTNERS, Partner } from '../lib/supabase'
+import { TEAM_PARTNERS, Partner, fetchPartnersFromDB } from '../lib/supabase'
 
 interface LoginPageProps {
   onLoginSuccess?: (partner: Partner) => void
@@ -8,12 +8,27 @@ interface LoginPageProps {
 
 export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const navigate = useNavigate()
+  const [partners, setPartners] = useState<Partner[]>(TEAM_PARTNERS)
   const [email, setEmail] = useState<string>('')
   const [pin, setPin] = useState<string>('')
   const [showPassword, setShowPassword] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch real partners list from Supabase DB on mount
+  useEffect(() => {
+    let isMounted = true
+    async function loadPartners() {
+      const dbPartners = await fetchPartnersFromDB()
+      if (isMounted && dbPartners && dbPartners.length > 0) {
+        setPartners(dbPartners)
+      }
+    }
+    loadPartners()
+    return () => { isMounted = false }
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!email || !email.trim()) {
@@ -21,12 +36,43 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       return
     }
 
+    setIsLoggingIn(true)
+    // Make sure we have the latest list from Supabase DB
+    const currentPartners = await fetchPartnersFromDB()
+    const activePartners = currentPartners.length > 0 ? currentPartners : partners
+    setIsLoggingIn(false)
+
     const query = email.trim().toLowerCase()
-    const partner = TEAM_PARTNERS.find(
-      p => p.email.toLowerCase() === query ||
-        p.id.toLowerCase() === query ||
-        p.name.toLowerCase().includes(query)
-    )
+    const queryClean = query.replace(/[^a-z0-9]/g, '')
+
+    const partner = activePartners.find(p => {
+      const pEmail = p.email.toLowerCase()
+      const pAltEmail = (p.altEmail || '').toLowerCase()
+      const pId = p.id.toLowerCase()
+      const pName = p.name.toLowerCase()
+      const pNameClean = pName.replace(/[^a-z0-9]/g, '')
+
+      // 1. Exact match on primary email or alt email
+      if (query === pEmail || (pAltEmail && query === pAltEmail)) return true
+
+      // 2. Exact match on partner ID / slug
+      if (query === pId) return true
+
+      // 3. User prefix match (part before @)
+      const userPrefix = query.split('@')[0]
+      if (userPrefix === pId) return true
+      if (userPrefix.includes('guillermo') || userPrefix.includes('pauldiaz')) {
+        if (pId === 'guillermo') return true
+      }
+
+      // 4. Partial match on name
+      if (pName.includes(query) || query.includes(pId)) return true
+
+      // 5. Clean string cross-match
+      if (queryClean.length >= 4 && (pNameClean.includes(queryClean) || queryClean.includes(pNameClean))) return true
+
+      return false
+    })
 
     if (!partner) {
       setError('No se encontró ningún socio registrado con este correo o nombre')
@@ -48,6 +94,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     // Navigate to main application dashboard
     navigate('/')
   }
+
 
   return (
     <div className="min-h-screen bg-[#020817] text-slate-100 flex flex-col justify-between p-4 sm:p-6 md:p-8 relative overflow-hidden font-sans selection:bg-[#00F0FF] selection:text-slate-950">
@@ -203,9 +250,17 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
               {/* Submit Button */}
               <button
                 type="submit"
+                disabled={isLoggingIn}
                 className="w-full py-3.5 bg-gradient-to-r from-[#FF5500] to-[#FF8800] hover:from-[#FF6600] hover:to-[#FFAA00] text-white font-extrabold text-sm rounded-xl transition-all shadow-lg shadow-[#FF5500]/30 cursor-pointer flex items-center justify-center gap-2 group mt-2"
               >
-                <span>→ Iniciar Sesión</span>
+                {isLoggingIn ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Validando con Supabase...</span>
+                  </>
+                ) : (
+                  <span>→ Iniciar Sesión</span>
+                )}
               </button>
             </form>
 

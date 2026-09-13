@@ -7,7 +7,7 @@ import { ProjectAllocation } from './components/ProjectAllocation'
 import { MakeupsTracker } from './components/MakeupsTracker'
 import { BottlenecksList } from './components/BottlenecksList'
 import { LoginPage } from './pages/LoginPage'
-import { TEAM_PARTNERS, Partner } from './lib/supabase'
+import { TEAM_PARTNERS, Partner, fetchPartnersFromDB } from './lib/supabase'
 
 function DashboardPage({
   sessionPartner,
@@ -120,8 +120,8 @@ function DashboardPage({
             onOpenLogin={() => navigate('/login')}
           />
         )}
-        {activeTab === 'projects' && <ProjectAllocation />}
-        {activeTab === 'makeups' && <MakeupsTracker />}
+        {activeTab === 'projects' && <ProjectAllocation sessionPartner={sessionPartner} />}
+        {activeTab === 'makeups' && <MakeupsTracker sessionPartner={sessionPartner} />}
         {activeTab === 'bottlenecks' && <BottlenecksList />}
       </div>
     </div>
@@ -133,6 +133,20 @@ export function App() {
     const savedId = localStorage.getItem('avento_session_partner_id')
     return TEAM_PARTNERS.find(p => p.id === savedId) || null
   })
+
+  // Load partners from Supabase DB on initialization to keep sessionPartner details in sync
+  useEffect(() => {
+    async function syncSessionPartnerWithDB() {
+      const savedId = localStorage.getItem('avento_session_partner_id')
+      if (!savedId) return
+      const partners = await fetchPartnersFromDB()
+      const found = partners.find(p => p.id === savedId)
+      if (found) {
+        setSessionPartner(found)
+      }
+    }
+    syncSessionPartnerWithDB()
+  }, [])
 
   const handleLoginSuccess = (partner: Partner) => {
     setSessionPartner(partner)
