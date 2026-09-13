@@ -12,38 +12,8 @@ interface BottlenecksListProps {
   sessionPartner?: Partner | null
 }
 
-const DEFAULT_STALLED_TASKS: StalledTask[] = [
-  {
-    id: '1',
-    title: 'Integración Webhook n8n multi-tenant (CRM)',
-    assignedName: 'David Mateo Carreño',
-    assignedEmail: 'mateo@aventoai.com',
-    projectName: 'CRM AventoAI',
-    hoursStalled: 52,
-    lastUpdate: 'Esperando respuesta de schema de base de datos'
-  },
-  {
-    id: '2',
-    title: 'Pruebas de microexpresiones en App Móvil',
-    assignedName: 'Anderson Estiven Méndez',
-    assignedEmail: 'anderson@aventoai.com',
-    projectName: 'MindConnect',
-    hoursStalled: 49,
-    lastUpdate: 'Pendiente prueba de servidor sandbox'
-  },
-  {
-    id: '3',
-    title: 'Maquetación de Inbox conversacional',
-    assignedName: 'José Guillermo Paúl Díaz',
-    assignedEmail: 'pauldiazjoseguillermo@gmail.com',
-    projectName: 'CRM AventoAI',
-    hoursStalled: 48,
-    lastUpdate: 'Revisión de componentes UI'
-  }
-]
-
 export function BottlenecksList({ sessionPartner }: BottlenecksListProps) {
-  const [tasks, setTasks] = useState<StalledTask[]>(DEFAULT_STALLED_TASKS)
+  const [tasks, setTasks] = useState<StalledTask[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   // Modal State for Notification
@@ -69,8 +39,10 @@ export function BottlenecksList({ sessionPartner }: BottlenecksListProps) {
       const dbTasks = await fetchStalledTasksDB()
       if (!isMounted) return
 
-      if (dbTasks && dbTasks.length > 0) {
+      if (dbTasks !== null) {
         setTasks(dbTasks)
+      } else {
+        setTasks([])
       }
       setIsLoading(false)
     }

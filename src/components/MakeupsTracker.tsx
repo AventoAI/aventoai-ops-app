@@ -25,34 +25,10 @@ export function MakeupsTracker({ sessionPartner }: MakeupsTrackerProps) {
 
       if (!isMounted) return
 
-      if (dbData && dbData.length > 0) {
+      if (dbData !== null) {
         setMakeups(dbData)
       } else {
-        // Fallback default sample data if table is empty
-        setMakeups([
-          {
-            id: '1',
-            partnerId: 'felipe',
-            partnerName: 'Felipe Barrera',
-            absenceDate: 'Viernes 4:00 PM',
-            type: 'personal',
-            reason: 'Trámite personal el Viernes en la tarde (4h)',
-            makeupSlot: 'Sábado 9:00 AM - 1:00 PM (Frontend CRM)',
-            status: 'pending',
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: '2',
-            partnerId: 'brayan',
-            partnerName: 'Brayan Vera',
-            absenceDate: 'Miércoles 10:00 AM',
-            type: 'emergency',
-            reason: 'Cita médica prioritaria (2h)',
-            makeupSlot: 'Sábado pasado (Diseño UI MindConnect)',
-            status: 'completed',
-            createdAt: new Date().toISOString()
-          }
-        ])
+        setMakeups([])
       }
       setIsLoading(false)
     }
@@ -228,42 +204,50 @@ export function MakeupsTracker({ sessionPartner }: MakeupsTrackerProps) {
         </div>
 
         <div className="space-y-3">
-          {makeups.map((m) => (
-            <div
-              key={m.id}
-              className={`bg-[#0F172A]/80 border rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 ${m.status === 'pending' ? 'border-amber-500/40' : 'border-[#0077FF]/30'
-                }`}
-            >
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-200">{m.partnerName}</span>
-                  {m.status === 'pending' ? (
-                    <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded border border-amber-500/30">
-                      Pendiente Reposición
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs font-semibold rounded border border-emerald-500/30">
-                      Reposición Cumplida
-                    </span>
+          {makeups.length === 0 ? (
+            <div className="p-8 rounded-2xl bg-[#0F172A]/50 border border-dashed border-slate-800 text-center space-y-2">
+              <span className="text-2xl">🎉</span>
+              <p className="text-sm font-bold text-emerald-400">Sin compromisos de reposición registrados</p>
+              <p className="text-xs text-slate-400">Usa el formulario a la izquierda para registrar novedades o bloques de horas a reponer.</p>
+            </div>
+          ) : (
+            makeups.map((m) => (
+              <div
+                key={m.id}
+                className={`bg-[#0F172A]/80 border rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 ${m.status === 'pending' ? 'border-amber-500/40' : 'border-[#0077FF]/30'
+                  }`}
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-200">{m.partnerName}</span>
+                    {m.status === 'pending' ? (
+                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded border border-amber-500/30">
+                        Pendiente Reposición
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs font-semibold rounded border border-emerald-500/30">
+                        Reposición Cumplida
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">Novedad: {m.reason}</p>
+                  {m.makeupSlot && (
+                    <p className="text-xs text-amber-300 font-medium">Bloque de Reposición: {m.makeupSlot}</p>
                   )}
                 </div>
-                <p className="text-xs text-slate-400">Novedad: {m.reason}</p>
-                {m.makeupSlot && (
-                  <p className="text-xs text-amber-300 font-medium">Bloque de Reposición: {m.makeupSlot}</p>
+                {m.status === 'pending' ? (
+                  <button
+                    onClick={() => markCompleted(m.id)}
+                    className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/40 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                  >
+                    Marcar Cumplido
+                  </button>
+                ) : (
+                  <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">✓ Verificado</span>
                 )}
               </div>
-              {m.status === 'pending' ? (
-                <button
-                  onClick={() => markCompleted(m.id)}
-                  className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/40 text-xs font-bold rounded-lg transition-all cursor-pointer"
-                >
-                  Marcar Cumplido
-                </button>
-              ) : (
-                <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">✓ Verificado</span>
-              )}
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>
