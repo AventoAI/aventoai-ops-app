@@ -10,18 +10,19 @@ CREATE TABLE IF NOT EXISTS public.partners (
   name TEXT NOT NULL,
   role TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
+  pin_hash TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Seed Default Partners
-INSERT INTO public.partners (slug, name, role, email) VALUES
-  ('guillermo', 'José Guillermo Paúl Díaz', 'CEO & CTO Principal', 'guillermo@aventoai.com'),
-  ('anderson', 'Anderson Estiven Méndez Lascarro', 'CTO Auxiliar', 'anderson@aventoai.com'),
-  ('felipe', 'Yave Felipe Barrera', 'Líder Frontend', 'felipe@aventoai.com'),
-  ('brayan', 'Brayan David Vera Mesa', 'Diseñador UI/UX & Frontend', 'brayan@aventoai.com'),
-  ('mateo', 'David Mateo Carreño Díaz', 'Automatizaciones n8n & Frontend', 'mateo@aventoai.com'),
-  ('juan', 'Juan Sebastián Cárdenas', 'Líder Backend', 'juan@aventoai.com'),
-  ('sebastian', 'Juan Sebastián Martínez Tapias', 'Fullstack & Animación 3D', 'sebastian@aventoai.com')
+-- Seed Default Partners with Bcrypt Hashed PINs
+INSERT INTO public.partners (slug, name, role, email, pin_hash) VALUES
+  ('guillermo', 'José Guillermo Paúl Díaz', 'CEO & CTO Principal', 'guillermo@aventoai.com', '$2b$10$f1pgYHxR9FcuqJUZDiFzIu.JjWwFdQnMoN.LyuoUmLrye2z/1IDBO'),
+  ('anderson', 'Anderson Estiven Méndez Lascarro', 'CTO Auxiliar', 'anderson@aventoai.com', '$2b$10$0fTbfQvyHHTMYDFmtiPGg.M4mJo2jRkIMzwPpP5lJGXmIto2odBeW'),
+  ('felipe', 'Yave Felipe Barrera', 'Líder Frontend', 'felipe@aventoai.com', '$2b$10$58kF6AYqYaa3ga1lfXGPNORcJBPWMT4NMuaazN/jGqfeTY6sfVGim'),
+  ('brayan', 'Brayan David Vera Mesa', 'Diseñador UI/UX & Frontend', 'brayan@aventoai.com', '$2b$10$S7q7atRhKOH26i6oYRZLjedfse24kRZBhX9nnCWYMHEt1V.PS/Jb.'),
+  ('mateo', 'David Mateo Carreño Díaz', 'Automatizaciones n8n & Frontend', 'mateo@aventoai.com', '$2b$10$VvEZIuIUsqga4igB0nfRX.2IuNo2WEdxdABYmFBUtN2utIgONcM7.'),
+  ('juan', 'Juan Sebastián Cárdenas', 'Líder Backend', 'juan@aventoai.com', '$2b$10$9SITWImuxHK7uuvWsJ8fnOOjCa2gERN7oYvD/b3Zl11sdf2Ry.6eK'),
+  ('sebastian', 'Juan Sebastián Martínez Tapias', 'Fullstack & Animación 3D', 'sebastian@aventoai.com', '$2b$10$bu2GgErio2RqJfoEqMVW7.LDKMuuzlcyBuZGvBH94bqEUkdLLOLoa')
 ON CONFLICT (slug) DO NOTHING;
 
 

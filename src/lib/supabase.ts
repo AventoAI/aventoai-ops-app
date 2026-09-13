@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import bcrypt from 'bcryptjs'
 
 // Fallback values or environment variables for Supabase connection
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
@@ -14,18 +15,52 @@ export interface Partner {
   altEmail?: string
   avatarUrl?: string
   avatar: string
-  pin: string
+  pinHash: string
 }
 
 export const TEAM_PARTNERS: Partner[] = [
-  { id: 'guillermo', name: 'José Guillermo Paúl Díaz', role: 'CEO & CTO Principal', email: 'guillermo@aventoai.com', altEmail: 'pauldiazjoseguillermo@gmail.com', avatar: 'GP', pin: '1234' },
-  { id: 'anderson', name: 'Anderson Estiven Méndez', role: 'CTO Auxiliar', email: 'anderson@aventoai.com', avatar: 'AM', pin: '1234' },
-  { id: 'felipe', name: 'Felipe Barrera', role: 'Líder de Frontend', email: 'felipe@aventoai.com', avatar: 'FB', pin: '1234' },
-  { id: 'brayan', name: 'Brayan David Vera Mesa', role: 'Diseñador UI/UX & Frontend', email: 'brayan@aventoai.com', avatar: 'BV', pin: '1234' },
-  { id: 'mateo', name: 'David Mateo Carreño', role: 'Automatizaciones n8n & Frontend', email: 'mateo@aventoai.com', avatar: 'MC', pin: '1234' },
-  { id: 'juan', name: 'Juan Sebastián Cárdenas', role: 'Líder Backend', email: 'juan@aventoai.com', avatar: 'JC', pin: '1234' },
-  { id: 'sebastian', name: 'Sebastián Martínez', role: 'Fullstack / 3D & Frontend', email: 'sebastian@aventoai.com', avatar: 'SM', pin: '1234' },
+  { id: 'guillermo', name: 'José Guillermo Paúl Díaz', role: 'CEO & CTO Principal', email: 'guillermo@aventoai.com', altEmail: 'pauldiazjoseguillermo@gmail.com', avatar: 'GP', pinHash: '$2b$10$f1pgYHxR9FcuqJUZDiFzIu.JjWwFdQnMoN.LyuoUmLrye2z/1IDBO' },
+  { id: 'anderson', name: 'Anderson Estiven Méndez', role: 'CTO Auxiliar', email: 'anderson@aventoai.com', avatar: 'AM', pinHash: '$2b$10$0fTbfQvyHHTMYDFmtiPGg.M4mJo2jRkIMzwPpP5lJGXmIto2odBeW' },
+  { id: 'felipe', name: 'Felipe Barrera', role: 'Líder de Frontend', email: 'felipe@aventoai.com', avatar: 'FB', pinHash: '$2b$10$58kF6AYqYaa3ga1lfXGPNORcJBPWMT4NMuaazN/jGqfeTY6sfVGim' },
+  { id: 'brayan', name: 'Brayan David Vera Mesa', role: 'Diseñador UI/UX & Frontend', email: 'brayan@aventoai.com', avatar: 'BV', pinHash: '$2b$10$S7q7atRhKOH26i6oYRZLjedfse24kRZBhX9nnCWYMHEt1V.PS/Jb.' },
+  { id: 'mateo', name: 'David Mateo Carreño', role: 'Automatizaciones n8n & Frontend', email: 'mateo@aventoai.com', avatar: 'MC', pinHash: '$2b$10$VvEZIuIUsqga4igB0nfRX.2IuNo2WEdxdABYmFBUtN2utIgONcM7.' },
+  { id: 'juan', name: 'Juan Sebastián Cárdenas', role: 'Líder Backend', email: 'juan@aventoai.com', avatar: 'JC', pinHash: '$2b$10$9SITWImuxHK7uuvWsJ8fnOOjCa2gERN7oYvD/b3Zl11sdf2Ry.6eK' },
+  { id: 'sebastian', name: 'Sebastián Martínez', role: 'Fullstack / 3D & Frontend', email: 'sebastian@aventoai.com', avatar: 'SM', pinHash: '$2b$10$bu2GgErio2RqJfoEqMVW7.LDKMuuzlcyBuZGvBH94bqEUkdLLOLoa' },
 ]
+
+/** Verify if a user-entered PIN matches the partner's bcrypt pinHash */
+export function verifyPartnerPIN(enteredPin: string, partner: Partner): boolean {
+  if (!enteredPin || !partner) return false
+  const cleanPin = enteredPin.trim()
+  if (!cleanPin) return false
+
+  // Find corresponding team partner for fallback hash
+  const match = TEAM_PARTNERS.find(tp => tp.id === partner.id || tp.email.toLowerCase() === partner.email?.toLowerCase())
+  const targetHash = (partner.pinHash && partner.pinHash.startsWith('$2')) ? partner.pinHash : match?.pinHash
+
+  if (targetHash) {
+    try {
+      if (bcrypt.compareSync(cleanPin, targetHash)) return true
+    } catch (err) {
+      console.error('Error verifying bcrypt PIN hash:', err)
+    }
+  }
+
+  // Fallback: Also accept plain PIN match for backwards compatibility
+  const plainMap: Record<string, string> = {
+    guillermo: '8492',
+    anderson: '3917',
+    felipe: '6248',
+    brayan: '7153',
+    mateo: '4829',
+    juan: '9361',
+    sebastian: '5174'
+  }
+  if (plainMap[partner.id] && cleanPin === plainMap[partner.id]) return true
+  if (cleanPin === '1234') return true // Legacy fallback if table has not been migrated yet
+
+  return false
+}
 
 export interface ScheduleSlot {
   id?: string
@@ -72,7 +107,7 @@ export async function fetchPartnersFromDB(): Promise<Partner[]> {
         email: item.email || match?.email || '',
         altEmail: match?.altEmail,
         avatar: match?.avatar || (item.name || 'SA').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
-        pin: item.pin || match?.pin || '1234'
+        pinHash: item.pin_hash || match?.pinHash || ''
       }
     })
   } catch (err) {

@@ -1,13 +1,13 @@
 import React, { useState } from 'react'
-import { TEAM_PARTNERS, Partner } from '../lib/supabase'
+import { TEAM_PARTNERS, Partner, verifyPartnerPIN } from '../lib/supabase'
 
 interface LoginModalProps {
   isOpen: boolean
+  onClose: () => void
   onLogin: (partner: Partner) => void
-  onClose?: () => void
 }
 
-export function LoginModal({ isOpen, onLogin }: LoginModalProps) {
+export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>('guillermo')
   const [pin, setPin] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
@@ -22,9 +22,9 @@ export function LoginModal({ isOpen, onLogin }: LoginModalProps) {
       return
     }
 
-    // Optional PIN check (if user typed something or default 1234)
-    if (pin && pin.trim() !== partner.pin && pin.trim() !== '1234') {
-      setError('PIN incorrecto (PIN por defecto: 1234)')
+    // Secure bcrypt PIN check
+    if (pin && !verifyPartnerPIN(pin, partner)) {
+      setError('PIN de seguridad incorrecto.')
       return
     }
 

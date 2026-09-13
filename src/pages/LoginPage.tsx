@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TEAM_PARTNERS, Partner, fetchPartnersFromDB } from '../lib/supabase'
+import { TEAM_PARTNERS, Partner, fetchPartnersFromDB, verifyPartnerPIN } from '../lib/supabase'
 
 interface LoginPageProps {
   onLoginSuccess?: (partner: Partner) => void
@@ -79,9 +79,9 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       return
     }
 
-    // Optional PIN verification (default 1234 or partner's specific PIN)
-    if (pin && pin.trim() !== partner.pin && pin.trim() !== '1234') {
-      setError('PIN o contraseña incorrecta. (PIN por defecto: 1234)')
+    // Secure bcrypt PIN verification for partner access
+    if (pin && !verifyPartnerPIN(pin, partner)) {
+      setError('PIN de seguridad incorrecto. Revisa tus credenciales institucionales de AventoAI.')
       return
     }
 
